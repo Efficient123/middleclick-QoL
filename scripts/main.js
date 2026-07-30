@@ -74,6 +74,7 @@ system.runInterval(() => {
       if (previous !== undefined && tick - previous <= DOUBLE_SNEAK_WINDOW) {
         const blockLookingAt = player.getBlockFromViewDirection({ maxDistance: 5, includePassableBlocks: true,  });
         const block = blockLookingAt?.block;
+        if (!block) return; 
         const family = getFamilyFromBlock(block);
 
         if (!family) {

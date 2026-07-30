@@ -1,22 +1,56 @@
 import { system, world } from "@minecraft/server";
-import { blockTools } from "./blocks";
 
 const prefixes = ["netherite", "diamond", "iron", "stone", "wooden"];
 
-const level = (tool) => {
-  return prefixes.indexOf(tool.split(":")[1].split("_")[0]);
-}
+const DOUBLE_SNEAK_WINDOW = 10;
 
 const lastSneak = new Map();
 const sneaking = new Map();
 
-const DOUBLE_SNEAK_WINDOW = 10;
+const TOOL_FAMILIES = [
+  {
+    kind: "pickaxe",
+    blockTags: ["minecraft:is_pickaxe_item_destructible"],
+  },
+  {
+    kind: "shovel",
+    blockTags: ["minecraft:is_shovel_item_destructible"],
+  },
+  {
+    kind: "axe",
+    blockTags: ["minecraft:is_axe_item_destructible"],
+  },
+  {
+    kind: "hoe",
+    blockTags: ["minecraft:is_hoe_item_destructible"],
+  },
+];
+
+function level(toolId) {
+  return prefixes.indexOf(toolId.split(":")[1].split("_")[0]);
+}
+
+function getItemFamily(itemId) {
+  const parts = itemId.split(":")[1].split("_");
+  return parts.slice(1).join("_"); 
+}
+
+function getFamilyFromBlock(block) {
+  if (!block) return null;
+
+  for (const family of TOOL_FAMILIES) {
+    for (const tag of family.blockTags) {
+      if (block.hasTag?.(tag) || block.permutation?.hasTag?.(tag)) {
+        return family.kind;
+      }
+    }
+  }
+  return null;
+}
 
 system.runInterval(() => {
   const tick = system.currentTick;
-
   for (const player of world.getPlayers()) {
-
     const id = player.id;
 
     const isSneaking = player.isSneaking;
@@ -26,42 +60,51 @@ system.runInterval(() => {
       const previous = lastSneak.get(id);
 
       if (previous !== undefined && tick - previous <= DOUBLE_SNEAK_WINDOW) {
+        const blockLookingAt = player.getBlockFromViewDirection({ maxDistance: 5 });
+        const block = blockLookingAt?.block;
+        const family = getFamilyFromBlock(block);
 
-        const id = player.id;
-
-        const block_looking_at = player.getBlockFromViewDirection({ maxDistance: 5 });
-        const blockId = block_looking_at?.block?.typeId;
-        const tool = blockTools[blockId];
-
-        if (!tool || tool === "minecraft:any") return;
-
+        if (!family) {
+          lastSneak.set(id, tick);
+          sneaking.set(id, isSneaking);
+          continue;
+        }
         const inven = player.getComponent("minecraft:inventory");
-        const container = inven.container;
+        const container = inven?.container;
 
-        let toolType = tool.split(":")[1].split("_");
-        const minLevel = toolType[0];
-        toolType = toolType[1];
-
-        const baselineLevel = prefixes.indexOf(minLevel);
-
+        if (!container) {
+          lastSneak.set(id, tick);
+          sneaking.set(id, isSneaking);
+          continue;
+        }
         const best = {
           level: Infinity,
           slot: undefined,
-        }
+        };
 
         for (let i = 0; i < container.size; i++) {
-          const item = container.getItem(i)?.typeId;
-          if (!item || item.split(":")[1].split("_")[1] !== toolType) continue;
-          const itemLevel = level(item);
-          if (itemLevel < best.level && itemLevel <= baselineLevel) {
+          const itemId = container.getItem(i)?.typeId;
+          if (!itemId) continue;
+
+          if (getItemFamily(itemId) !== family) continue;
+
+          const itemLevel = level(itemId);
+          if (itemLevel < 0) continue;
+
+          if (itemLevel < best.level) {
             best.level = itemLevel;
             best.slot = i;
           }
         }
-        if (best.slot !== undefined) {
+
+        if (
+          best.slot !== undefined &&
+          best.slot !== player.selectedSlotIndex
+        ) {
           container.swapItems(best.slot, player.selectedSlotIndex, container);
         }
       }
+
       lastSneak.set(id, tick);
     }
     sneaking.set(id, isSneaking);

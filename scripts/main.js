@@ -24,20 +24,32 @@ const TOOL_FAMILIES = [
     kind: "hoe",
     blockTags: ["minecraft:is_hoe_item_destructible"],
   },
+  {
+    kind: "shears",
+    blockTags: ["minecraft:is_shears_item_destructible"],
+  },
 ];
 
-function level(toolId) {
-  return prefixes.indexOf(toolId.split(":")[1].split("_")[0]);
+function getItemFamily(itemId) {
+  const name = itemId.split(":")[1];
+
+  if (name === "shears") return "shears";
+
+  const parts = name.split("_");
+  return parts.slice(1).join("_");
 }
 
-function getItemFamily(itemId) {
-  const parts = itemId.split(":")[1].split("_");
-  return parts.slice(1).join("_"); 
+function level(toolId) {
+  const name = toolId.split(":")[1];
+
+  if (name === "shears") return 0;
+
+  return prefixes.indexOf(name.split("_")[0]);
 }
 
 function getFamilyFromBlock(block) {
   if (!block) return null;
-
+  if (block.typeId.endsWith("leaves")) return "shears";
   for (const family of TOOL_FAMILIES) {
     for (const tag of family.blockTags) {
       if (block.hasTag?.(tag) || block.permutation?.hasTag?.(tag)) {
@@ -60,7 +72,7 @@ system.runInterval(() => {
       const previous = lastSneak.get(id);
 
       if (previous !== undefined && tick - previous <= DOUBLE_SNEAK_WINDOW) {
-        const blockLookingAt = player.getBlockFromViewDirection({ maxDistance: 5 });
+        const blockLookingAt = player.getBlockFromViewDirection({ maxDistance: 5, includePassableBlocks: true,  });
         const block = blockLookingAt?.block;
         const family = getFamilyFromBlock(block);
 

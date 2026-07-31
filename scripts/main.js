@@ -7,6 +7,22 @@ const DOUBLE_SNEAK_WINDOW = 10;
 const lastSneak = new Map();
 const sneaking = new Map();
 
+const TIER_REQUIREMENTS = [
+  ["minecraft:diamond_tier_destructible", 1],
+  ["minecraft:iron_tier_destructible", 2],
+  ["minecraft:stone_tier_destructible", 3],
+];
+
+function minimumTier(block) {
+  for (const [tag, tier] of TIER_REQUIREMENTS) {
+    if (block.hasTag?.(tag) || block.permutation?.hasTag?.(tag)) {
+      return tier;
+    }
+  }
+
+  return 4;
+}
+
 const TOOL_FAMILIES = [
   {
     kind: "pickaxe",
@@ -72,9 +88,9 @@ system.runInterval(() => {
       const previous = lastSneak.get(id);
 
       if (previous !== undefined && tick - previous <= DOUBLE_SNEAK_WINDOW) {
-        const blockLookingAt = player.getBlockFromViewDirection({ maxDistance: 5, includePassableBlocks: true,  });
+        const blockLookingAt = player.getBlockFromViewDirection({ maxDistance: 5, includePassableBlocks: true, });
         const block = blockLookingAt?.block;
-        if (!block) return; 
+        if (!block) return;
         const family = getFamilyFromBlock(block);
 
         if (!family) {
@@ -95,6 +111,8 @@ system.runInterval(() => {
           slot: undefined,
         };
 
+        const requiredTier = minimumTier(block);
+
         for (let i = 0; i < container.size; i++) {
           const itemId = container.getItem(i)?.typeId;
           if (!itemId) continue;
@@ -103,6 +121,8 @@ system.runInterval(() => {
 
           const itemLevel = level(itemId);
           if (itemLevel < 0) continue;
+
+          if (itemLevel > requiredTier) continue;
 
           if (itemLevel < best.level) {
             best.level = itemLevel;
